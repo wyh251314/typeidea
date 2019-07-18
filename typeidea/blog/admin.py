@@ -4,9 +4,26 @@ from django.utils.html import format_html
 
 from .models import Post, Category, Tag
 
+class CategoryOwnerFilter(admin.SimpleListFilter):
+    """ 自定义过滤器只展示当前分类 """
+
+    title = "分类过滤器"
+    paramter_name = "owner_category"
+
+    def lookups(self, request, model_admin):
+        return Category.objects.filter(owner=request.user).values_list('id', 'name')
+
+    def queryset(self, request, queryset):
+        category_id = self.value()
+        if category_id:
+            return queryset.filter(category_id=self.value())
+        return queryset
+
+
 @admin.register(Category)
 class CategoryAdmin(admin.ModelAdmin):
-    list_display = ('name', 'status', 'is_nav', 'created_time')
+    # list_display = ('name', 'status', 'is_nav', 'created_time')
+    list_display = [CategoryOwnerFilter] # 让用户在侧边栏的过滤器只看到自己创建的分类
     fields = ('name', 'status', 'is_nav')
 
     def save_model(self, request, obj, form, change):
@@ -39,12 +56,34 @@ class PostAdmin(admin.ModelAdmin):
     # 编写页面
     save_on_top = True
 
-    fields = (
-        ('category', 'title'),
-        'desc',
-        'status',
-        'content',
-        'tag',
+    exclude = ('owner',)
+
+    # fields = (
+    #     ('category', 'title'),
+    #     'desc',
+    #     'status',
+    #     'content',
+    #     'tag',
+    # )
+
+    fieldsets = (
+        ('基础配置', {
+            'description': '基础配置描述',
+            'fields': (
+                ('title', 'category'),
+                'status',
+            ),
+        }),
+        ('内容', {
+            'fields': (
+                'desc',
+                'content',
+            ),
+        }),
+        ('额外信息', {
+            'classes': ('collapse',),
+            'fields': ('tag',),
+        })
     )
 
     def operator(self, obj):
@@ -58,6 +97,15 @@ class PostAdmin(admin.ModelAdmin):
         obj.owner = request.user
         return super(PostAdmin, self).save_model(request, obj, form, change)
 
+    def get_queryset(self, request):
+        qs = super(PostAdmin, self).get_queryset(request)
+        return qs.filter(owner=request.user)
+
+    class Media:
+        css = {
+            'all': ("https://cdn.bootcss.com/bootstrap/4.0.0-beta.2/css/bootstrap.min.css", ),
+        }
+        js = ('https://cdn.bootcss.com/bootstrap/4.0.0-beta.2/jd/bootstrap.bundle.js', )
 
 
 
